@@ -1,0 +1,142 @@
+// Copyright (C) 2013 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// libinput is partially built for the host (used by build time keymap validation tool)
+
+//cc_library_headers {
+//    name: "libinputzizhan_headers",
+//    export_include_dirs: ["include"],
+//    vendor_available: true,
+//    header_libs: [
+//        "libbase_headers",
+//        "libcutils_headers",
+//        "libutils_headers",
+//    ],
+//    export_header_lib_headers: [
+//        "libbase_headers",
+//        "libcutils_headers",
+//        "libutils_headers",
+//    ],
+//}
+
+cc_library_headers {
+    name: "libinputzizhan_headers",
+    host_supported: true,
+    export_include_dirs: [
+        "mapper",
+        "mapper/accumulator",
+        "mapper/gestures",
+        "controller", 
+    ],
+}
+
+cc_library {
+    name: "libinputzizhan",
+    cpp_std: "c++20",
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-Wno-unused-parameter",
+        "-Wthread-safety",
+        "-Wno-error=c++20-extensions",
+    ],
+    srcs: [
+        "LibZizhan.cpp",
+        "InputReaderZizhan.cpp",
+        "EventHubZizhan.cpp",
+        "InputDeviceZizhan.cpp",
+        "MacrosZizhan.cpp",
+        "TouchVideoDeviceZizhan.cpp",
+        "InputListenerZizhan.cpp",
+        "InputReaderBaseZizhan.cpp",
+        "InputThreadZizhan.cpp",
+        "NotifyArgsZizhan.cpp",
+        "VibrationElementZizhan.cpp",
+        "controller/PeripheralControllerZizhan.cpp",
+        "mapper/CapturedTouchpadEventConverterZizhan.cpp",
+        "mapper/CursorInputMapperZizhan.cpp",
+        "mapper/ExternalStylusInputMapperZizhan.cpp",
+        "mapper/InputMapperZizhan.cpp",
+        "mapper/JoystickInputMapperZizhan.cpp",
+        "mapper/KeyboardInputMapperZizhan.cpp",
+        //-----------------------rk code----------
+        "mapper/KeyMouseInputMapperZizhan.cpp",
+        //----------------------------------------
+        "mapper/MultiTouchInputMapperZizhan.cpp",
+        "mapper/RotaryEncoderInputMapperZizhan.cpp",
+        "mapper/SensorInputMapperZizhan.cpp",
+        "mapper/SingleTouchInputMapperZizhan.cpp",
+        "mapper/SwitchInputMapperZizhan.cpp",
+        "mapper/TouchCursorInputMapperCommonZizhan.cpp",
+        "mapper/TouchInputMapperZizhan.cpp",
+        "mapper/TouchpadInputMapperZizhan.cpp",
+        "mapper/VibratorInputMapperZizhan.cpp",
+        "mapper/accumulator/CursorButtonAccumulatorZizhan.cpp",
+        "mapper/accumulator/CursorScrollAccumulatorZizhan.cpp",
+        "mapper/accumulator/HidUsageAccumulatorZizhan.cpp",
+        "mapper/accumulator/MultiTouchMotionAccumulatorZizhan.cpp",
+        "mapper/accumulator/SingleTouchMotionAccumulatorZizhan.cpp",
+        "mapper/accumulator/TouchButtonAccumulatorZizhan.cpp",
+        "mapper/gestures/GestureConverterZizhan.cpp",
+        "mapper/gestures/GesturesLoggingZizhan.cpp",
+        "mapper/gestures/HardwareStateConverterZizhan.cpp",
+        "mapper/gestures/PropertyProviderZizhan.cpp",
+    ],
+    
+    //clang: true,
+
+    shared_libs: [
+        "libbase",
+        "liblog",
+        "libcap",
+        "libcutils",
+        "libinputflinger_base",
+        "libcrypto",
+        "libinput",
+        "libui",
+        "libhardware_legacy",
+        "libstatslog",
+        "libutils",
+        "libjsoncpp",
+        "libPlatformProperties",
+        "libstatspull",
+        "libstatssocket",
+    ],
+
+    static_libs: [
+        "libc++fs",
+        "libchrome-gestures",
+        "libui-types",
+    ],
+
+    header_libs: [
+        "libbatteryservice_headers",
+        "libchrome-gestures_headers",
+        "libinputzizhan_headers",
+    ],
+
+    include_dirs: [
+    "frameworks/native/include",  // 基本路径
+    "system/core/libutils/include",  // 备用路径
+    ],
+
+    //header_libs: [
+    //    "libinputzizhan_headers",
+    //],
+
+    //export_header_lib_headers: [
+    //    "libinputzizhan_headers",
+    //],
+}

@@ -1,0 +1,15 @@
+cc_library_shared {
+    name: "libdrm_utils",
+    //vendor: true, 
+    srcs: ["DrmUtils.cpp"],
+    shared_libs: [
+        "libdrm",
+        "liblog",
+    ],
+    header_libs: ["libdrm_headers"],
+    export_include_dirs: ["include"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+}
