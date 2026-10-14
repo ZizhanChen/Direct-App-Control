@@ -1040,20 +1040,20 @@ status_t BufferQueueProducer::queueBuffer(int slot,
                 ALOGW("[zizhan] Failed to dup DMA-BUF fd: %s", strerror(errno));
             } else {
                 // 创建帧缓冲
-                //uint32_t fb_id = g_drm_state.create_fb(
-                //    g_drm_state.drm_context, dma_buf_fd, 
-                //    gb->getWidth(), gb->getHeight());
+                uint32_t fb_id = g_drm_state.create_fb(
+                    g_drm_state.drm_context, dma_buf_fd, 
+                    gb->getWidth(), gb->getHeight());
                 
-                //if (fb_id > 0) {
+                if (fb_id > 0) {
                     // 提交显示
-                //    int ret = g_drm_state.page_flip(g_drm_state.drm_context, fb_id);
-                //    if (ret != 0) {
-                //        ALOGW("[zizhan] drm_context_page_flip failed: %d", ret);
-                //    }
-                //} else {
-                //    ALOGW("[zizhan] Failed to create DRM framebuffer");
-                //}
-                //close(dma_buf_fd); // 关闭复制的 fd
+                    int ret = g_drm_state.page_flip(g_drm_state.drm_context, fb_id);
+                    if (ret != 0) {
+                        ALOGW("[zizhan] drm_context_page_flip failed: %d", ret);
+                    }
+                } else {
+                    ALOGW("[zizhan] Failed to create DRM framebuffer");
+                }
+                close(dma_buf_fd); // 关闭复制的 fd
                 log_with_microseconds("[zizhan] UTC DISPLAY-END1 display finish Successfully.");
             }
         }
