@@ -89,16 +89,11 @@ InputReader::InputReader(//std::shared_ptr<EventHubInterface> eventHub,
     mEventHub = std::make_unique<EventHub>();
     refreshConfigurationLocked(/*changes=*/{});
     updateGlobalMetaStateLocked();
-
-    //zizhan
-    mLibZizhan = std::make_unique<LibZizhan>();
-    mLibZizhan->addWindow(0, 0, 1920, 1080, 99);
 }
 
 
 
 InputReader::~InputReader() {
-    mLibZizhan->delWindow();
 }
 
 android::status_t InputReader::start() {
