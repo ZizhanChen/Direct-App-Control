@@ -33,6 +33,12 @@
 #include <sys/sysinfo.h>
 #include <time.h>
 
+#include <jni.h>
+#include <android/log.h>
+
+#define LOG_TAG "LibZizhanJNI"
+#define ALOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
+
 namespace zizhan {
 
 // --- LibZizhan ---
@@ -152,6 +158,23 @@ int32_t LibZizhan::getDeviceIdLocked() {
 //    processEventsZizhan(rawEvents, count);
 //}
 
+extern "C" JNIEXPORT jint JNICALL
+Java_android_view_ViewRootImpl_nativeAddWindow(JNIEnv* env, jclass clazz,
+        jint left, jint top, jint height, jint width, jint zorder) {
+    zizhan::LibZizhan lib;
+    int32_t ret = lib.addWindow(left, top, height, width, zorder);
+    ALOGD("nativeAddWindow: left=%d top=%d height=%d width=%d zorder=%d ret=%d",
+          left, top, height, width, zorder, ret);
+    return ret;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_android_view_ViewRootImpl_nativeDelWindow(JNIEnv* env, jclass clazz) {
+    zizhan::LibZizhan lib;
+    int32_t ret = lib.delWindow();
+    ALOGD("nativeDelWindow ret=%d", ret);
+    return ret;
+}
 
 
 } // namespace zizhan
