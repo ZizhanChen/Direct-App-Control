@@ -207,7 +207,7 @@ static jboolean nativeIsConsumerRunningBehind(JNIEnv* env, jclass clazz, jlong n
 
 
 //zizhan
-/*
+
 static void debug_save_file(void *ptr, int size, char *path)
 {
 	FILE *debug_file;
@@ -227,8 +227,8 @@ static void debug_save_file(void *ptr, int size, char *path)
 
 	fclose(debug_file);
 }
-*/
-/*
+
+
 static void fill_frame_rgb24_date(unsigned char *ptr, int width, int height, int linesize)
 {
 	unsigned char *line_ptr = NULL;
@@ -261,8 +261,8 @@ static void fill_frame_rgb24_date(unsigned char *ptr, int width, int height, int
 		}
 	}	
 }
-*/
-/*
+
+
 void log_with_microseconds(const std::string& message) {
     auto now = std::chrono::system_clock::now();
     auto us = std::chrono::time_point_cast<std::chrono::microseconds>(now);
@@ -499,7 +499,7 @@ static int drm_display_zizhan(void * ptr)
 	//sleep(1);
 
 	// Start Set plane: show frame to plane
-	//while (frame_cnt--) {
+	while (frame_cnt--) {
 	    //fill_frame_rgb24_date((unsigned char *)bo->ptr, width, height, pitches[0]);
         memset(bo->ptr, 255, height * pitches[0]);
         //memcpy(bo->ptr, ptr, height * pitches[0]);
@@ -517,7 +517,7 @@ static int drm_display_zizhan(void * ptr)
         ALOGD("[zizhan]: drmModeSetPlane succeed! plane_id:%d, fb_id:%d\n", plane_id, fb_id);
         log_with_microseconds("[zizhan]: display finish!!!!!!!!!!!"); 
 		//sleep(1);
-	//}
+	}
 
 //OUT:
 
@@ -540,7 +540,7 @@ static int drm_display_zizhan(void * ptr)
 
     return 0;
 }
-*/
+
 
 static jlong nativeLockCanvas(JNIEnv* env, jclass clazz,
         jlong nativeObject, jobject canvasObj, jobject dirtyRectObj) {
@@ -577,18 +577,18 @@ static jlong nativeLockCanvas(JNIEnv* env, jclass clazz,
         
     //zizhan
     // 获取实际参数
-    //int width = buffer.width;
-    //int height = buffer.height;
-    //int stride_pixels = buffer.stride; // 像素步长
-    //int format = buffer.format;
+    int width = buffer.width;
+    int height = buffer.height;
+    int stride_pixels = buffer.stride; // 像素步长
+    int format = buffer.format;
 
     // 计算实际字节 pitch
-    //int bpp = (format == HAL_PIXEL_FORMAT_RGB_888) ? 3 : 4;
-    //size_t surface_pitch = stride_pixels * bpp;
+    int bpp = (format == HAL_PIXEL_FORMAT_RGB_888) ? 3 : 4;
+    size_t surface_pitch = stride_pixels * bpp;
 
-    //ALOGD("Surface: %dx%d, stride=%dpx, fmt=%d, pitch=%zu bytes", 
-    //  width, height, stride_pixels, format, surface_pitch);
-    //drm_display_zizhan(buffer.bits);
+    ALOGD("Surface: %dx%d, stride=%dpx, fmt=%d, pitch=%zu bytes", 
+      width, height, stride_pixels, format, surface_pitch);
+    drm_display_zizhan(buffer.bits);
 
     graphics::Canvas canvas(env, canvasObj);
     canvas.setBuffer(&buffer, static_cast<int32_t>(surface->getBuffersDataSpace()));
