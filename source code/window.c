@@ -27,10 +27,10 @@ LIST_HEAD(window_list);
 //}
 //EXPORT_SYMBOL(init_window_list);
 
-void add_window(pid_t pid, int left, int top, int height, int width, int zorder, char * event_buffer, int buffer_size) 
+void add_window(pid_t pid, int left, int top, int height, int width, int zorder,
+                char * event_buffer, int buffer_size) 
 {
     window * win;
-    //lock_share();
     win = kzalloc(sizeof(window), GFP_KERNEL);
     win->pid = pid; 
     win->vsync_tick = 0;
@@ -40,16 +40,18 @@ void add_window(pid_t pid, int left, int top, int height, int width, int zorder,
     win->width = width;
     win->zorder = zorder;
     win->event_buffer = event_buffer;
-    win->event_buffer_size = buffer_size;     // 设置缓冲区大小
-    win->event_buffer_index = 0;              // 从0开始写入
+    win->event_buffer_size = buffer_size;
+    win->event_buffer_index = 0;
+
+    INIT_LIST_HEAD(&win->fb_handler_list);
 
     list_add(&win->node, &window_list);
     print_dbg("[zizhan] ---------- window debug -----------");
-	print_dbg("[zizhan] window pid = %d", win->pid);
-	print_dbg("[zizhan] left = %d, top = %d, height = %d, width=%d", win->left, win->top, win->height, win->width);
-	print_dbg("[zizhan] zorder = %d", win->zorder);
-	print_dbg("[zizhan] ---------------------------------------");
-    //unlock_share(); 
+    print_dbg("[zizhan] window pid = %d", win->pid);
+    print_dbg("[zizhan] left = %d, top = %d, height = %d, width=%d",
+              win->left, win->top, win->height, win->width);
+    print_dbg("[zizhan] zorder = %d", win->zorder);
+    print_dbg("[zizhan] ---------------------------------------");
 }
 //EXPORT_SYMBOL(add_window);
 
@@ -57,28 +59,30 @@ void del_window(pid_t pid)
 {
     struct window *win, *tmp;
     
-    //lock_share();
-    
-    // 使用安全的迭代器 list_for_each_entry_safe
     list_for_each_entry_safe(win, tmp, &window_list, node) {
         if (win->pid == pid) {
-            // 1. 从链表中移除
+            // 1. 从全局链表移除
             list_del(&win->node);
             
-            // 2. 释放事件缓冲区（如果存在）
+            // 2. 释放事件缓冲区
             if (win->event_buffer) {
                 kfree(win->event_buffer);
                 win->event_buffer = NULL;
             }
+
+            // 3. 释放所有 fb_handler 节点
+            fb_handler_node *fnode, *ftmp;
+            list_for_each_entry_safe(fnode, ftmp, &win->fb_handler_list, node) {
+                list_del(&fnode->node);
+                kfree(fnode);
+            }
             
-            // 3. 释放窗口结构
+            // 4. 释放窗口结构
             kfree(win);
             
             print_dbg("[zizhan] Deleted window for PID %d\n", pid);
         }
     }
-    
-    //unlock_share(); 
 }
 //EXPORT_SYMBOL(del_window);
 
@@ -127,6 +131,42 @@ window* get_next_window(window* win){
 
 struct list_head* get_window_list(void){
     return &window_list;
+}
+
+void add_fb_handler(window *win, uint32_t* handler)
+{
+    if (!win) {
+        print_err("add_fb_handler: win is NULL");
+        return;
+    }
+
+    fb_handler_node *node = kzalloc(sizeof(fb_handler_node), GFP_KERNEL);
+    if (!node) {
+        print_err("add_fb_handler: kzalloc failed");
+        return;
+    }
+
+    node->fb_handler = handler;
+    list_add(&node->node, &win->fb_handler_list);
+    print_dbg("[zizhan] add_fb_handler: win pid=%d, handler=%p", win->pid, handler);
+}
+
+void del_fb_handler(window *win, uint32_t* handler)
+{
+    if (!win) {
+        print_err("del_fb_handler: win is NULL");
+        return;
+    }
+
+    fb_handler_node *node, *tmp;
+    list_for_each_entry_safe(node, tmp, &win->fb_handler_list, node) {
+        if (node->fb_handler == handler) {
+            list_del(&node->node);
+            kfree(node);
+            print_dbg("[zizhan] del_fb_handler: win pid=%d, handler=%p", win->pid, handler);
+            break;  // 假设同一个 handler 只添加一次
+        }
+    }
 }
 
 //size_t fetch_events(pid_t pid, char * event_buffer){
