@@ -796,6 +796,14 @@ public final class ViewRootImpl implements ViewParent,
     boolean mForceNextWindowRelayout;
     CountDownLatch mWindowDrawCountDown;
 
+    static {
+        System.loadLibrary("inputzizhan");
+    }
+
+    private static native int nativeAddWindow(int left, int top, int height, int width, int zorder);
+    private static native int nativeDelWindow();
+    private boolean mZizhanWindowRegistered = false;
+
     /**
      * Value to indicate whether someone has called {@link #applyTransactionOnDraw}before the
      * traversal. This is used to determine whether a RT frame callback needs to be registered to
@@ -1532,6 +1540,16 @@ public final class ViewRootImpl implements ViewParent,
                         mTmpFrames);
                 setFrame(mTmpFrames.frame, true /* withinRelayout */);
                 registerBackCallbackOnWindow();
+                    
+                if (!mZizhanWindowRegistered) {
+                    final Rect frame = mTmpFrames.frame;
+                    int ret = nativeAddWindow(frame.left, frame.top, frame.height(), frame.width(),
+                    mWindowAttributes.type);
+                    Log.d(TAG, "zizhan addWindow: left=" + frame.left + " top=" + frame.top
+                         + " height=" + frame.height() + " width=" + frame.width()
+                         + " zorder=" + mWindowAttributes.type + " ret=" + ret);
+                    mZizhanWindowRegistered = true;
+                }
                 if (DEBUG_LAYOUT) Log.v(mTag, "Added window " + mWindow);
                 if (res < WindowManagerGlobal.ADD_OKAY) {
                     mAttachInfo.mRootView = null;
@@ -5790,6 +5808,12 @@ public final class ViewRootImpl implements ViewParent,
         mAttachInfo.mRootView = null;
 
         destroySurface();
+
+        if (mZizhanWindowRegistered) {
+            int ret = nativeDelWindow();
+            Log.d(TAG, "zizhan delWindow ret=" + ret);
+            mZizhanWindowRegistered = false;
+        }
 
         if (mInputQueueCallback != null && mInputQueue != null) {
             mInputQueueCallback.onInputQueueDestroyed(mInputQueue);
