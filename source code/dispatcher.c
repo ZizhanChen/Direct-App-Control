@@ -62,10 +62,7 @@ void dispatch_once(data_queue* queue)
 }
 
 static bool policy(event * e, window * win){
-	//if((e->x > win->left) && (e->x < win->left + win->width) && (e->y > win->top) && (e->y < win->top + win->height)){
-	//	return true;
-	//}
-	if (win->zorder == 99){
+	if((e->x > win->left) && (e->x < win->left + win->width) && (e->y > win->top) && (e->y < win->top + win->height)){
 		return true;
 	}
 	return false;
