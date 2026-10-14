@@ -12,6 +12,7 @@
 #define print_info(fmt, ...) printk(KERN_NOTICE LOG_TAG "%s:%d->" fmt "\n", \
 					__func__, __LINE__, ##__VA_ARGS__)
 
+
 //struct list_head window_list;
 LIST_HEAD(window_list);
 
