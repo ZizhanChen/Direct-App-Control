@@ -181,7 +181,6 @@ private:
     // in parallel to passing it to the InputReader.
     std::shared_ptr<EventHubInterface> mEventHub;
     android::sp<InputReaderPolicyInterface> mPolicy;
-    std::shared_ptr<LibZizhan> mLibZizhan;
     
     //zizhan
     static const int EVENT_BUFFER_SIZE = 100;
