@@ -92,7 +92,7 @@ InputReader::InputReader(//std::shared_ptr<EventHubInterface> eventHub,
 
     //zizhan
     mLibZizhan = std::make_unique<LibZizhan>();
-    mLibZizhan->addWindow(1, 2, 3, 4, 99);
+    mLibZizhan->addWindow(0, 0, 1920, 1080, 99);
 }
 
 
