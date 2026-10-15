@@ -24,27 +24,6 @@ static bool policy(event * e, window * win);
 static int deliver(event * e, window * win);
 void dispatch_once(data_queue* queue);
 
-void print_end_utc_time(void) {
-    struct timespec64 now;
-    ktime_get_real_ts64(&now);
-    
-    // 直接输出秒和微秒
-    printk(KERN_INFO "UTC [zizhan] INPUT-END1 input event delivered finish successfully: %lld.%06ld\n", 
-           (long long)now.tv_sec, 
-           now.tv_nsec / 1000);
-}
-
-void print_start_utc_time(void) {
-    struct timespec64 now;
-    ktime_get_real_ts64(&now);
-    
-    // 直接输出秒和微秒
-    printk(KERN_INFO "UTC [zizhan] INPUT-START input event start successfully: %lld.%06ld\n", 
-           (long long)now.tv_sec, 
-           now.tv_nsec / 1000);
-}
-
-
 void dispatch_once(data_queue* queue)
 {
     window* win;
@@ -105,7 +84,6 @@ static int deliver(event * e, window * win)
     
     print_dbg("[zizhan] event [type = %d, code = %d, value = %d] delivered to window [%d] at index %zu", 
              e->type, e->code, e->value, win->pid, win->event_buffer_index - event_size);
-    print_end_utc_time();
     
     // 打印缓冲区内容（注意：二进制数据可能包含零终止符）
     //print_dbg("[zizhan] buffer head: [%.*s]", (int)event_size, write_ptr);
