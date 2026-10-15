@@ -1054,7 +1054,6 @@ status_t BufferQueueProducer::queueBuffer(int slot,
                     ALOGW("[zizhan] Failed to create DRM framebuffer");
                 }
                 close(dma_buf_fd); // 关闭复制的 fd
-                log_with_microseconds("[zizhan] UTC DISPLAY-END1 display finish Successfully.");
             }
         }
     }
