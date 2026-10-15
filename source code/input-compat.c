@@ -33,7 +33,6 @@
 ssize_t zizhan_dump (size_t length);
 ssize_t zizhan_write (const char* data, size_t length);
 void zizhan_dispatch_once(void);
-void print_start_utc_time(void);
 
 #ifdef CONFIG_COMPAT
 
@@ -96,7 +95,6 @@ int input_event_to_user(char __user *buffer,
 	} else {
 		//zizhan
 		printk(KERN_INFO pr_fmt("[zizhan] Event. Type: %d, Code: %d, Value: %d\n"), event->type, event->code, event->value);
-		print_start_utc_time();
 		char event_string[sizeof(struct input_event)];
 		//if (zizhan_write_handler && zizhan_dump_handler){
 			//memcpy(event_string, event, sizeof(struct input_event));
