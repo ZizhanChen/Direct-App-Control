@@ -812,18 +812,6 @@ public class DecorView extends FrameLayout implements RootViewSurfaceTaker, Wind
     @Override
     public void draw(Canvas canvas) {
         super.draw(canvas);
-        // 获取当前UTC时间（微秒精度）
-        Instant now = Instant.now();
-        long seconds = now.getEpochSecond();
-        long micros = now.getNano() / 1000; // 纳秒转微秒
-
-        // 格式化输出
-        DateTimeFormatter formatter = DateTimeFormatter.ISO_INSTANT;
-        String utcTime = formatter.format(now).replace("Z", "") 
-            + String.format("%06d", micros % 1_000_000);
-
-        Slog.d(TAG, "[zizhan] UTC DISPLAY-START draw start time: " + utcTime + " for DecorView successfully");
-
         if (mMenuBackground != null) {
             mMenuBackground.draw(canvas);
         }
