@@ -55,141 +55,157 @@
 // 在匿名命名空间中封装所有 DRM 相关实现
 namespace {
 
-// 定义函数指针类型（仅在此命名空间内可见）
-typedef void* (*drm_context_create_t)();
-typedef int (*drm_context_init_t)(void*);
+typedef void*    (*drm_context_create_t)();
+typedef int      (*drm_context_init_t)(void*);
 typedef uint32_t (*drm_context_create_fb_t)(void*, int, int, int);
-typedef int (*drm_context_page_flip_t)(void*, uint32_t);
-typedef void (*drm_context_destroy_t)(void*);
+typedef int      (*drm_context_page_flip_t)(void*, uint32_t);
+typedef void     (*drm_context_destroy_t)(void*);
 
-// 全局 DRM 状态（完全封装）
-struct DrmGlobalState {
-    void* lib_handle = nullptr;
-    drm_context_create_t create = nullptr;
-    drm_context_init_t init = nullptr;
-    drm_context_create_fb_t create_fb = nullptr;
-    drm_context_page_flip_t page_flip = nullptr;
-    drm_context_destroy_t destroy = nullptr;
+struct DrmDirectState {
+    void* lib_handle  = nullptr;
+    drm_context_create_t     create     = nullptr;
+    drm_context_init_t       init       = nullptr;
+    drm_context_create_fb_t  create_fb  = nullptr;
+    drm_context_page_flip_t  page_flip  = nullptr;
+    drm_context_destroy_t    destroy    = nullptr;
+
     void* drm_context = nullptr;
-    bool enabled = false;
+    bool  enabled     = false;
+
+    // 复用：一个 GraphicBuffer（bufferId）对应一个 fb_id
+    // 同一个 GB 反复被 queue 时直接复用，避免每帧 create_fb
+    android::Mutex fb_lock;
+    std::unordered_map<uint64_t, uint32_t> fb_cache;
+
     std::once_flag init_flag;
 
-    // 添加重置函数替代赋值操作
     void reset() {
-        if (drm_context && destroy) {
-            destroy(drm_context);
-        }
-        if (lib_handle) {
-            dlclose(lib_handle);
-        }
+        if (drm_context && destroy) destroy(drm_context);
+        if (lib_handle) dlclose(lib_handle);
         lib_handle = nullptr;
-        create = nullptr;
-        init = nullptr;
-        create_fb = nullptr;
-        page_flip = nullptr;
-        destroy = nullptr;
-        drm_context = nullptr;
-        enabled = false;
-        // 注意：once_flag 不能重置，所以我们保留它
+        create = nullptr; init = nullptr; create_fb = nullptr;
+        page_flip = nullptr; destroy = nullptr;
+        drm_context = nullptr; enabled = false;
+        android::Mutex::Autolock _l(fb_lock);
+        fb_cache.clear();
     }
 };
 
-// 全局实例（仅在此编译单元内可见）
-DrmGlobalState g_drm_state;
+DrmDirectState g_drm_state;
 
-// 初始化函数（静态链接，不导出）
-static void init_drm() {
+// 幂等初始化
+static bool ensure_drm() {
     std::call_once(g_drm_state.init_flag, []{
-        // 动态加载库
-        g_drm_state.lib_handle = dlopen("libdrm_utils.so", RTLD_NOW | RTLD_LOCAL);
-
-
+        g_drm_state.lib_handle =
+            dlopen("libdrm_utils.so", RTLD_NOW | RTLD_LOCAL);
         if (!g_drm_state.lib_handle) {
-            ALOGW("[zizhan] Failed to load libdrm_utils: %s", dlerror());
+            ALOGW("[zizhan] load libdrm_utils failed: %s", dlerror());
             return;
         }
-        
-        // 解析函数
-        g_drm_state.create = reinterpret_cast<drm_context_create_t>(
-            dlsym(g_drm_state.lib_handle, "drm_context_create"));
-        g_drm_state.init = reinterpret_cast<drm_context_init_t>(
-            dlsym(g_drm_state.lib_handle, "drm_context_init"));
-        g_drm_state.create_fb = reinterpret_cast<drm_context_create_fb_t>(
-            dlsym(g_drm_state.lib_handle, "drm_context_create_fb"));
-        g_drm_state.page_flip = reinterpret_cast<drm_context_page_flip_t>(
-            dlsym(g_drm_state.lib_handle, "drm_context_page_flip"));
-        g_drm_state.destroy = reinterpret_cast<drm_context_destroy_t>(
-            dlsym(g_drm_state.lib_handle, "drm_context_destroy"));
-        
-        if (!g_drm_state.create || !g_drm_state.init || 
-            !g_drm_state.create_fb || !g_drm_state.page_flip || 
+        g_drm_state.create    = (drm_context_create_t)   dlsym(g_drm_state.lib_handle, "drm_context_create");
+        g_drm_state.init      = (drm_context_init_t)     dlsym(g_drm_state.lib_handle, "drm_context_init");
+        g_drm_state.create_fb = (drm_context_create_fb_t)dlsym(g_drm_state.lib_handle, "drm_context_create_fb");
+        g_drm_state.page_flip = (drm_context_page_flip_t)dlsym(g_drm_state.lib_handle, "drm_context_page_flip");
+        g_drm_state.destroy   = (drm_context_destroy_t)  dlsym(g_drm_state.lib_handle, "drm_context_destroy");
+
+        if (!g_drm_state.create || !g_drm_state.init ||
+            !g_drm_state.create_fb || !g_drm_state.page_flip ||
             !g_drm_state.destroy) {
-            ALOGW("[zizhan] Missing symbols in libdrm_utils");
-            dlclose(g_drm_state.lib_handle);
-            //g_drm_state.lib_handle = nullptr;
+            ALOGW("[zizhan] libdrm_utils missing symbols");
             g_drm_state.reset();
             return;
         }
-        
-        // 创建并初始化 DRM 上下文
+
         g_drm_state.drm_context = g_drm_state.create();
-        if (g_drm_state.drm_context && 
-            g_drm_state.init(g_drm_state.drm_context) == 0) {
+        if (g_drm_state.drm_context && g_drm_state.init(g_drm_state.drm_context) == 0) {
             g_drm_state.enabled = true;
-            ALOGI("[zizhan] DRM direct display initialized successfully");
+            ALOGI("[zizhan] DRM direct display initialized");
         } else {
-            ALOGW("[zizhan] Failed to initialize DRM context");
-            //if (g_drm_state.drm_context) {
-            //    g_drm_state.destroy(g_drm_state.drm_context);
-           //}
-            //dlclose(g_drm_state.lib_handle);
-            //g_drm_state = {};
+            ALOGW("[zizhan] DRM init failed");
             g_drm_state.reset();
         }
     });
+    return g_drm_state.enabled;
 }
 
-// 清理函数（静态链接，不导出）
-static void drm_global_cleanup() {
-    //if (g_drm_state.drm_context && g_drm_state.destroy) {
-    //    g_drm_state.destroy(g_drm_state.drm_context);
-    //    g_drm_state.drm_context = nullptr;
-    //}
-    //if (g_drm_state.lib_handle) {
-    //    dlclose(g_drm_state.lib_handle);
-    //    g_drm_state.lib_handle = nullptr;
-    //}
-    //g_drm_state.enabled = false;
-    g_drm_state.reset();
+// 核心呈现逻辑：线程安全，失败返回 false
+static bool present_via_drm(const android::sp<android::GraphicBuffer>& gb,
+                            const android::sp<android::Fence>& fence) {
+    if (gb == nullptr) return false;
+
+    // 用一个 sysprop 做开关，方便测试和回退
+    char value[PROP_VALUE_MAX] = {0};
+    if (__system_property_get("debug.zizhan.drm_direct", value) <= 0 || value[0] != '1') {
+        return false;
+    }
+
+    if (!ensure_drm()) return false;
+
+    // 1. 关键：等 GPU 完成，否则 flip 到屏幕的是脏 buffer
+    if (fence != nullptr && fence->isValid()) {
+        status_t err = fence->waitForever("zizhan-drm-direct");
+        if (err != android::NO_ERROR) {
+            ALOGW("[zizhan] wait fence failed: %d", err);
+            return false;
+        }
+    }
+
+    const native_handle_t* handle = gb->handle;
+    if (handle == nullptr || handle->numFds < 1 || handle->data[0] < 0) {
+        ALOGW("[zizhan] invalid native_handle");
+        return false;
+    }
+
+    android::Mutex::Autolock _l(g_drm_state.fb_lock);
+
+    // 2. 缓存：同一个 GraphicBuffer 的 fb_id 复用
+    const uint64_t bufferId = gb->getId();
+    uint32_t fb_id = 0;
+    auto it = g_drm_state.fb_cache.find(bufferId);
+    if (it != g_drm_state.fb_cache.end()) {
+        fb_id = it->second;
+    } else {
+        // 3. 关键：dup 一份 fd 交给 DRM。绝不能 close(gb->handle->data[0])
+        int owned_fd = dup(handle->data[0]);
+        if (owned_fd < 0) {
+            ALOGW("[zizhan] dup dma-buf failed: %s", strerror(errno));
+            return false;
+        }
+        fb_id = g_drm_state.create_fb(g_drm_state.drm_context,
+                                      owned_fd,
+                                      gb->getWidth(),
+                                      gb->getHeight());
+        if (fb_id == 0) {
+            close(owned_fd);
+            ALOGW("[zizhan] create_fb failed");
+            return false;
+        }
+        // 说明：如果 libdrm_utils 内部不接管 owned_fd，需要你改成
+        //   create_fb 成功 -> close(owned_fd);
+        //   并在 fb_cache 里记录 (bufferId -> (fb_id, size))，
+        //   在 drop 缓存时用 destroy 释放，具体看接口语义。
+        g_drm_state.fb_cache.emplace(bufferId, fb_id);
+
+        ALOGD("[zizhan] new fb_id=%u for bufferId=%" PRIu64 " (%ux%u)",
+              fb_id, bufferId, gb->getWidth(), gb->getHeight());
+    }
+
+    // 4. page flip
+    int ret = g_drm_state.page_flip(g_drm_state.drm_context, fb_id);
+    if (ret != 0) {
+        ALOGW("[zizhan] page_flip failed: %d", ret);
+        return false;
+    }
+    return true;
 }
 
-// 注册全局析构函数
 class DrmGlobalCleanup {
 public:
-    ~DrmGlobalCleanup() {
-        drm_global_cleanup();
-    }
+    ~DrmGlobalCleanup() { g_drm_state.reset(); }
 };
-
 static DrmGlobalCleanup s_drm_cleanup;
 
-void log_with_microseconds(const std::string& message) {
-    auto now = std::chrono::system_clock::now();
-    auto us = std::chrono::time_point_cast<std::chrono::microseconds>(now);
-    
-    std::time_t now_c = std::chrono::system_clock::to_time_t(now);
-    struct tm time_info;
-    localtime_r(&now_c, &time_info);
-    
-    char time_buf[20];
-    strftime(time_buf, sizeof(time_buf), "%H:%M:%S", &time_info);
-    
-    auto microseconds = us.time_since_epoch().count() % 1000000;
-    
-    ALOGD("[%s.%06lld] %s", time_buf, microseconds, message.c_str());
-}
-
-} // 匿名命名空间结束
+} // namespace
 
 namespace android {
 
