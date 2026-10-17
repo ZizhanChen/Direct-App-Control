@@ -15,6 +15,7 @@
  */
 
 #include <inttypes.h>
+#include <hwcomposerzizhan/HwcZizhan.h>
 //
 #define LOG_TAG "BufferQueueProducer"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
@@ -1027,6 +1028,7 @@ status_t BufferQueueProducer::queueBuffer(int slot,
 
     //zizhan
     // 获取 GraphicBuffer 对象
+    /*
     sp<GraphicBuffer> gb = mSlots[slot].mGraphicBuffer;
     if (gb == nullptr) {
         ALOGE("[zizhan] queueBuffer: slot %d has no GraphicBuffer", slot);
@@ -1072,7 +1074,7 @@ status_t BufferQueueProducer::queueBuffer(int slot,
                 close(dma_buf_fd); // 关闭复制的 fd
             }
         }
-    }
+    }*/
 
     if (acquireFence == nullptr) {
         BQ_LOGE("queueBuffer: fence is NULL");
@@ -1274,6 +1276,57 @@ status_t BufferQueueProducer::queueBuffer(int slot,
     // there will be no Binder call
     if (!mConsumerIsSurfaceFlinger) {
         item.mGraphicBuffer.clear();
+    }
+        
+    // ==== zizhan: 通过 HWC 合成路径送入 DRM ====
+    {
+        auto& hwc = android::zizhan::HwcZizhan::get();
+        if (hwc.init() && !mConsumerIsSurfaceFlinger) {
+            sp<GraphicBuffer> presentGb = item.mGraphicBuffer;
+            sp<Fence>         presentFence = item.mFence;
+
+            if (presentGb != nullptr) {
+                // 1. 找到/更新该 BQ 的 layer
+                int64_t layerId = hwc.addOrUpdateLayer(
+                        mCore->mUniqueId,
+                        mCore->mDefaultWidth  ? 0 : 0,   // left
+                        mCore->mDefaultHeight ? 0 : 0,   // top
+                        presentGb->getWidth(),
+                        presentGb->getHeight(),
+                        /*zorder=*/ static_cast<int>(mCore->mUniqueId & 0xFF));
+
+                if (layerId >= 0) {
+                    // 2. 拿 dma-buf fd
+                    const native_handle_t* handle = presentGb->handle;
+                    int inFenceFd = -1;
+                    if (presentFence != nullptr && presentFence->isValid()) {
+                        inFenceFd = presentFence->dup();
+                    }
+
+                    if (handle && handle->numFds > 0) {
+                        int dmabufFd = dup(handle->data[0]);
+                        if (dmabufFd >= 0) {
+                            hwc.updateLayerBuffer(
+                                    layerId,
+                                    dmabufFd,
+                                    presentGb->getId(),
+                                    presentGb->getWidth(),
+                                    presentGb->getHeight(),
+                                    presentGb->getPixelFormat(),
+                                    presentGb->getStride() * 4 /* bpp */,
+                                    inFenceFd);
+
+                            // 3. 提交给硬件合成
+                            hwc.commit();
+
+                            close(dmabufFd);
+                        } else {
+                            if (inFenceFd >= 0) close(inFenceFd);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // Update and get FrameEventHistory.
@@ -1642,6 +1695,12 @@ status_t BufferQueueProducer::disconnect(int api, DisconnectMode mode) {
     if (listener != nullptr) {
         listener->onBuffersReleased();
         listener->onDisconnect();
+    }
+
+    // ==== zizhan: 窗口断开时移除对应 layer ====
+    {
+        auto& hwc = android::zizhan::HwcZizhan::get();
+        hwc.removeLayerByKey(mCore->mUniqueId);
     }
 
     return status;
